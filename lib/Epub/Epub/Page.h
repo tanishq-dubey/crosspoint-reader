@@ -8,6 +8,7 @@
 
 enum PageElementTag : uint8_t {
   TAG_PageLine = 1,
+  TAG_PageImage = 2,
 };
 
 // represents something that has been added to a page
@@ -17,6 +18,7 @@ class PageElement {
   int16_t yPos;
   explicit PageElement(const int16_t xPos, const int16_t yPos) : xPos(xPos), yPos(yPos) {}
   virtual ~PageElement() = default;
+  virtual PageElementTag getTag() const = 0;
   virtual void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset) = 0;
   virtual bool serialize(FsFile& file) = 0;
 };
@@ -28,6 +30,7 @@ class PageLine final : public PageElement {
  public:
   PageLine(std::shared_ptr<TextBlock> block, const int16_t xPos, const int16_t yPos)
       : PageElement(xPos, yPos), block(std::move(block)) {}
+  PageElementTag getTag() const override { return TAG_PageLine; }
   void render(GfxRenderer& renderer, int fontId, int xOffset, int yOffset) override;
   bool serialize(FsFile& file) override;
   static std::unique_ptr<PageLine> deserialize(FsFile& file);

@@ -88,7 +88,7 @@ void writeBmpHeader8bit(Print& bmpOut, const int width, const int height) {
 }
 
 // Helper function: Write BMP header with 2-bit color depth
-void JpegToBmpConverter::writeBmpHeader(Print& bmpOut, const int width, const int height) {
+static void writeBmpHeader(Print& bmpOut, const int width, const int height) {
   // Calculate row padding (each row must be multiple of 4 bytes)
   const int bytesPerRow = (width * 2 + 31) / 32 * 4;  // 2 bits per pixel, round up
   const int imageSize = bytesPerRow * height;
@@ -128,8 +128,8 @@ void JpegToBmpConverter::writeBmpHeader(Print& bmpOut, const int width, const in
 }
 
 // Callback function for picojpeg to read JPEG data
-unsigned char JpegToBmpConverter::jpegReadCallback(unsigned char* pBuf, const unsigned char buf_size,
-                                                   unsigned char* pBytes_actually_read, void* pCallback_data) {
+static unsigned char jpegReadCallback(unsigned char* pBuf, const unsigned char buf_size,
+                                      unsigned char* pBytes_actually_read, void* pCallback_data) {
   auto* context = static_cast<JpegReadContext*>(pCallback_data);
 
   if (!context || !context->file) {
@@ -159,8 +159,9 @@ unsigned char JpegToBmpConverter::jpegReadCallback(unsigned char* pBuf, const un
   return 0;  // Success
 }
 
-// Core function: Convert JPEG file to 2-bit BMP
-bool JpegToBmpConverter::jpegFileToBmpStream(FsFile& jpegFile, Print& bmpOut) {
+// Internal implementation with configurable size limits
+static bool jpegFileToBmpStreamInternal(FsFile& jpegFile, Print& bmpOut, const int targetMaxWidth,
+                                        const int targetMaxHeight, uint16_t* outWidth, uint16_t* outHeight) {
   Serial.printf("[%lu] [JPG] Converting JPEG to BMP\n", millis());
 
   // Setup context for picojpeg callback
@@ -189,46 +190,46 @@ bool JpegToBmpConverter::jpegFileToBmpStream(FsFile& jpegFile, Print& bmpOut) {
   }
 
   // Calculate output dimensions (pre-scale to fit display exactly)
-  int outWidth = imageInfo.m_width;
-  int outHeight = imageInfo.m_height;
+  int bmpWidth = imageInfo.m_width;
+  int bmpHeight = imageInfo.m_height;
   // Use fixed-point scaling (16.16) for sub-pixel accuracy
   uint32_t scaleX_fp = 65536;  // 1.0 in 16.16 fixed point
   uint32_t scaleY_fp = 65536;
   bool needsScaling = false;
 
-  if (USE_PRESCALE && (imageInfo.m_width > TARGET_MAX_WIDTH || imageInfo.m_height > TARGET_MAX_HEIGHT)) {
+  if (USE_PRESCALE && (imageInfo.m_width > targetMaxWidth || imageInfo.m_height > targetMaxHeight)) {
     // Calculate scale to fit within target dimensions while maintaining aspect ratio
-    const float scaleToFitWidth = static_cast<float>(TARGET_MAX_WIDTH) / imageInfo.m_width;
-    const float scaleToFitHeight = static_cast<float>(TARGET_MAX_HEIGHT) / imageInfo.m_height;
+    const float scaleToFitWidth = static_cast<float>(targetMaxWidth) / imageInfo.m_width;
+    const float scaleToFitHeight = static_cast<float>(targetMaxHeight) / imageInfo.m_height;
     // We scale to the smaller dimension, so we can potentially crop later.
     // TODO: ideally, we already crop here.
     const float scale = (scaleToFitWidth > scaleToFitHeight) ? scaleToFitWidth : scaleToFitHeight;
 
-    outWidth = static_cast<int>(imageInfo.m_width * scale);
-    outHeight = static_cast<int>(imageInfo.m_height * scale);
+    bmpWidth = static_cast<int>(imageInfo.m_width * scale);
+    bmpHeight = static_cast<int>(imageInfo.m_height * scale);
 
     // Ensure at least 1 pixel
-    if (outWidth < 1) outWidth = 1;
-    if (outHeight < 1) outHeight = 1;
+    if (bmpWidth < 1) bmpWidth = 1;
+    if (bmpHeight < 1) bmpHeight = 1;
 
     // Calculate fixed-point scale factors (source pixels per output pixel)
-    // scaleX_fp = (srcWidth << 16) / outWidth
-    scaleX_fp = (static_cast<uint32_t>(imageInfo.m_width) << 16) / outWidth;
-    scaleY_fp = (static_cast<uint32_t>(imageInfo.m_height) << 16) / outHeight;
+    // scaleX_fp = (srcWidth << 16) / bmpWidth
+    scaleX_fp = (static_cast<uint32_t>(imageInfo.m_width) << 16) / bmpWidth;
+    scaleY_fp = (static_cast<uint32_t>(imageInfo.m_height) << 16) / bmpHeight;
     needsScaling = true;
 
     Serial.printf("[%lu] [JPG] Pre-scaling %dx%d -> %dx%d (fit to %dx%d)\n", millis(), imageInfo.m_width,
-                  imageInfo.m_height, outWidth, outHeight, TARGET_MAX_WIDTH, TARGET_MAX_HEIGHT);
+                  imageInfo.m_height, bmpWidth, bmpHeight, targetMaxWidth, targetMaxHeight);
   }
 
   // Write BMP header with output dimensions
   int bytesPerRow;
   if (USE_8BIT_OUTPUT) {
-    writeBmpHeader8bit(bmpOut, outWidth, outHeight);
-    bytesPerRow = (outWidth + 3) / 4 * 4;
+    writeBmpHeader8bit(bmpOut, bmpWidth, bmpHeight);
+    bytesPerRow = (bmpWidth + 3) / 4 * 4;
   } else {
-    writeBmpHeader(bmpOut, outWidth, outHeight);
-    bytesPerRow = (outWidth * 2 + 31) / 32 * 4;
+    writeBmpHeader(bmpOut, bmpWidth, bmpHeight);
+    bytesPerRow = (bmpWidth * 2 + 31) / 32 * 4;
   }
 
   // Allocate row buffer
@@ -264,9 +265,9 @@ bool JpegToBmpConverter::jpegFileToBmpStream(FsFile& jpegFile, Print& bmpOut) {
   FloydSteinbergDitherer* fsDitherer = nullptr;
   if (!USE_8BIT_OUTPUT) {
     if (USE_ATKINSON) {
-      atkinsonDitherer = new AtkinsonDitherer(outWidth);
+      atkinsonDitherer = new AtkinsonDitherer(bmpWidth);
     } else if (USE_FLOYD_STEINBERG) {
-      fsDitherer = new FloydSteinbergDitherer(outWidth);
+      fsDitherer = new FloydSteinbergDitherer(bmpWidth);
     }
   }
 
@@ -279,8 +280,8 @@ bool JpegToBmpConverter::jpegFileToBmpStream(FsFile& jpegFile, Print& bmpOut) {
   uint32_t nextOutY_srcStart = 0;  // Source Y where next output row starts (16.16 fixed point)
 
   if (needsScaling) {
-    rowAccum = new uint32_t[outWidth]();
-    rowCount = new uint16_t[outWidth]();
+    rowAccum = new uint32_t[bmpWidth]();
+    rowCount = new uint16_t[bmpWidth]();
     nextOutY_srcStart = scaleY_fp;  // First boundary is at scaleY_fp (source Y for outY=1)
   }
 
@@ -349,12 +350,12 @@ bool JpegToBmpConverter::jpegFileToBmpStream(FsFile& jpegFile, Print& bmpOut) {
         memset(rowBuffer, 0, bytesPerRow);
 
         if (USE_8BIT_OUTPUT) {
-          for (int x = 0; x < outWidth; x++) {
+          for (int x = 0; x < bmpWidth; x++) {
             const uint8_t gray = mcuRowBuffer[bufferY * imageInfo.m_width + x];
             rowBuffer[x] = adjustPixel(gray);
           }
         } else {
-          for (int x = 0; x < outWidth; x++) {
+          for (int x = 0; x < bmpWidth; x++) {
             const uint8_t gray = adjustPixel(mcuRowBuffer[bufferY * imageInfo.m_width + x]);
             uint8_t twoBit;
             if (atkinsonDitherer) {
@@ -377,13 +378,13 @@ bool JpegToBmpConverter::jpegFileToBmpStream(FsFile& jpegFile, Print& bmpOut) {
       } else {
         // Fixed-point area averaging for exact fit scaling
         // For each output pixel X, accumulate source pixels that map to it
-        // srcX range for outX: [outX * scaleX_fp >> 16, (outX+1) * scaleX_fp >> 16)
+        // srcX range for bmpX: [bmpX * scaleX_fp >> 16, (bmpX+1) * scaleX_fp >> 16)
         const uint8_t* srcRow = mcuRowBuffer + bufferY * imageInfo.m_width;
 
-        for (int outX = 0; outX < outWidth; outX++) {
+        for (int bmpX = 0; bmpX < bmpWidth; bmpX++) {
           // Calculate source X range for this output pixel
-          const int srcXStart = (static_cast<uint32_t>(outX) * scaleX_fp) >> 16;
-          const int srcXEnd = (static_cast<uint32_t>(outX + 1) * scaleX_fp) >> 16;
+          const int srcXStart = (static_cast<uint32_t>(bmpX) * scaleX_fp) >> 16;
+          const int srcXEnd = (static_cast<uint32_t>(bmpX + 1) * scaleX_fp) >> 16;
 
           // Accumulate all source pixels in this range
           int sum = 0;
@@ -399,8 +400,8 @@ bool JpegToBmpConverter::jpegFileToBmpStream(FsFile& jpegFile, Print& bmpOut) {
             count = 1;
           }
 
-          rowAccum[outX] += sum;
-          rowCount[outX] += count;
+          rowAccum[bmpX] += sum;
+          rowCount[bmpX] += count;
         }
 
         // Check if we've crossed into the next output row
@@ -408,16 +409,16 @@ bool JpegToBmpConverter::jpegFileToBmpStream(FsFile& jpegFile, Print& bmpOut) {
         const uint32_t srcY_fp = static_cast<uint32_t>(y + 1) << 16;
 
         // Output row when source Y crosses the boundary
-        if (srcY_fp >= nextOutY_srcStart && currentOutY < outHeight) {
+        if (srcY_fp >= nextOutY_srcStart && currentOutY < bmpHeight) {
           memset(rowBuffer, 0, bytesPerRow);
 
           if (USE_8BIT_OUTPUT) {
-            for (int x = 0; x < outWidth; x++) {
+            for (int x = 0; x < bmpWidth; x++) {
               const uint8_t gray = (rowCount[x] > 0) ? (rowAccum[x] / rowCount[x]) : 0;
               rowBuffer[x] = adjustPixel(gray);
             }
           } else {
-            for (int x = 0; x < outWidth; x++) {
+            for (int x = 0; x < bmpWidth; x++) {
               const uint8_t gray = adjustPixel((rowCount[x] > 0) ? (rowAccum[x] / rowCount[x]) : 0);
               uint8_t twoBit;
               if (atkinsonDitherer) {
@@ -441,8 +442,8 @@ bool JpegToBmpConverter::jpegFileToBmpStream(FsFile& jpegFile, Print& bmpOut) {
           currentOutY++;
 
           // Reset accumulators for next output row
-          memset(rowAccum, 0, outWidth * sizeof(uint32_t));
-          memset(rowCount, 0, outWidth * sizeof(uint16_t));
+          memset(rowAccum, 0, bmpWidth * sizeof(uint32_t));
+          memset(rowCount, 0, bmpWidth * sizeof(uint16_t));
 
           // Update boundary for next output row
           nextOutY_srcStart = static_cast<uint32_t>(currentOutY + 1) * scaleY_fp;
@@ -467,6 +468,21 @@ bool JpegToBmpConverter::jpegFileToBmpStream(FsFile& jpegFile, Print& bmpOut) {
   free(mcuRowBuffer);
   free(rowBuffer);
 
+  // Output the final dimensions if requested
+  if (outWidth) *outWidth = static_cast<uint16_t>(bmpWidth);
+  if (outHeight) *outHeight = static_cast<uint16_t>(bmpHeight);
+
   Serial.printf("[%lu] [JPG] Successfully converted JPEG to BMP\n", millis());
   return true;
+}
+
+// Public wrapper with default cover image size limits
+bool JpegToBmpConverter::jpegFileToBmpStream(FsFile& jpegFile, Print& bmpOut) {
+  return jpegFileToBmpStreamInternal(jpegFile, bmpOut, TARGET_MAX_WIDTH, TARGET_MAX_HEIGHT, nullptr, nullptr);
+}
+
+// Public wrapper with custom size limits
+bool JpegToBmpConverter::jpegFileToBmpStreamScaled(FsFile& jpegFile, Print& bmpOut, const int maxWidth,
+                                                   const int maxHeight, uint16_t* outWidth, uint16_t* outHeight) {
+  return jpegFileToBmpStreamInternal(jpegFile, bmpOut, maxWidth, maxHeight, outWidth, outHeight);
 }

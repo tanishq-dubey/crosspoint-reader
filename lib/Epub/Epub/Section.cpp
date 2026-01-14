@@ -175,9 +175,22 @@ bool Section::createSectionFile(const int fontId, const float lineCompression, c
                          viewportHeight);
   std::vector<uint32_t> lut = {};
 
+  // Calculate content base path for this chapter (directory containing the HTML file)
+  std::string contentBasePath;
+  {
+    const size_t lastSlash = localPath.find_last_of('/');
+    if (lastSlash != std::string::npos) {
+      contentBasePath = localPath.substr(0, lastSlash + 1);
+    }
+  }
+
+  // Create image cache directory
+  const std::string imageCacheDir = epub->getCachePath() + "/sections/images";
+  SdMan.mkdir(imageCacheDir.c_str());
+
   ChapterHtmlSlimParser visitor(
-      tmpHtmlPath, renderer, fontId, lineCompression, extraParagraphSpacing, paragraphAlignment, viewportWidth,
-      viewportHeight,
+      tmpHtmlPath, renderer, epub.get(), contentBasePath, imageCacheDir, fontId, lineCompression, extraParagraphSpacing,
+      paragraphAlignment, viewportWidth, viewportHeight,
       [this, &lut](std::unique_ptr<Page> page) { lut.emplace_back(this->onPageComplete(std::move(page))); },
       progressFn);
   success = visitor.parseAndBuildPages();

@@ -3,6 +3,8 @@
 #include <HardwareSerial.h>
 #include <Serialization.h>
 
+#include "PageImage.h"
+
 void PageLine::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset) {
   block->render(renderer, fontId, xPos + xOffset, yPos + yOffset);
 }
@@ -36,8 +38,8 @@ bool Page::serialize(FsFile& file) const {
   serialization::writePod(file, count);
 
   for (const auto& el : elements) {
-    // Only PageLine exists currently
-    serialization::writePod(file, static_cast<uint8_t>(TAG_PageLine));
+    // Write element tag using virtual method
+    serialization::writePod(file, static_cast<uint8_t>(el->getTag()));
     if (!el->serialize(file)) {
       return false;
     }
@@ -59,6 +61,9 @@ std::unique_ptr<Page> Page::deserialize(FsFile& file) {
     if (tag == TAG_PageLine) {
       auto pl = PageLine::deserialize(file);
       page->elements.push_back(std::move(pl));
+    } else if (tag == TAG_PageImage) {
+      auto pi = PageImage::deserialize(file);
+      page->elements.push_back(std::move(pi));
     } else {
       Serial.printf("[%lu] [PGE] Deserialization failed: Unknown tag %u\n", millis(), tag);
       return nullptr;
