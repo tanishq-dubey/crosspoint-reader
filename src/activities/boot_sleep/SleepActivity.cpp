@@ -8,7 +8,6 @@
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "fontIds.h"
-#include "images/CrossLarge.h"
 #include "util/StringUtils.h"
 
 void SleepActivity::onEnter() {
@@ -117,9 +116,13 @@ void SleepActivity::renderDefaultSleepScreen() const {
   const auto pageHeight = renderer.getScreenHeight();
 
   renderer.clearScreen();
-  renderer.drawImage(CrossLarge, (pageWidth + 128) / 2, (pageHeight - 128) / 2, 128, 128);
-  renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 + 70, "CrossPoint", true, EpdFontFamily::BOLD);
-  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight / 2 + 95, "SLEEPING");
+
+  // Draw "//DWS" large and centered
+  renderer.drawCenteredText(BOOKERLY_18_FONT_ID, pageHeight / 2 - 20, "//DWS", true, EpdFontFamily::BOLD);
+  // Draw "SignalOS" smaller below
+  renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 + 15, "SignalOS", true);
+
+  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight / 2 + 50, "SLEEPING");
 
   // Make sleep screen dark unless light is selected in settings
   if (SETTINGS.sleepScreen != CrossPointSettings::SLEEP_SCREEN_MODE::LIGHT) {
@@ -204,7 +207,7 @@ void SleepActivity::renderCoverSleepScreen() const {
   if (StringUtils::checkFileExtension(APP_STATE.openEpubPath, ".xtc") ||
       StringUtils::checkFileExtension(APP_STATE.openEpubPath, ".xtch")) {
     // Handle XTC file
-    Xtc lastXtc(APP_STATE.openEpubPath, "/.crosspoint");
+    Xtc lastXtc(APP_STATE.openEpubPath, "/.signalos");
     if (!lastXtc.load()) {
       Serial.println("[SLP] Failed to load last XTC");
       return renderDefaultSleepScreen();
@@ -218,7 +221,7 @@ void SleepActivity::renderCoverSleepScreen() const {
     coverBmpPath = lastXtc.getCoverBmpPath();
   } else if (StringUtils::checkFileExtension(APP_STATE.openEpubPath, ".epub")) {
     // Handle EPUB file
-    Epub lastEpub(APP_STATE.openEpubPath, "/.crosspoint");
+    Epub lastEpub(APP_STATE.openEpubPath, "/.signalos");
     if (!lastEpub.load()) {
       Serial.println("[SLP] Failed to load last epub");
       return renderDefaultSleepScreen();

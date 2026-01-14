@@ -3,7 +3,6 @@
 #include <GfxRenderer.h>
 
 #include "fontIds.h"
-#include "images/CrossLarge.h"
 
 void BootActivity::onEnter() {
   Activity::onEnter();
@@ -12,9 +11,13 @@ void BootActivity::onEnter() {
   const auto pageHeight = renderer.getScreenHeight();
 
   renderer.clearScreen();
-  renderer.drawImage(CrossLarge, (pageWidth + 128) / 2, (pageHeight - 128) / 2, 128, 128);
-  renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 + 70, "CrossPoint", true, EpdFontFamily::BOLD);
-  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight / 2 + 95, "BOOTING");
-  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, CROSSPOINT_VERSION);
+
+  // Draw "//DWS" large and centered
+  renderer.drawCenteredText(BOOKERLY_18_FONT_ID, pageHeight / 2 - 20, "//DWS", true, EpdFontFamily::BOLD);
+  // Draw "SignalOS" smaller below
+  renderer.drawCenteredText(UI_10_FONT_ID, pageHeight / 2 + 15, "SignalOS", true);
+
+  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight / 2 + 50, "BOOTING");
+  renderer.drawCenteredText(SMALL_FONT_ID, pageHeight - 30, SIGNALOS_VERSION);
   renderer.displayBuffer();
 }
