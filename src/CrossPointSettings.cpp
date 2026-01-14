@@ -15,12 +15,12 @@ namespace {
 constexpr uint8_t SETTINGS_FILE_VERSION = 1;
 // Increment this when adding new persisted settings fields
 constexpr uint8_t SETTINGS_COUNT = 17;
-constexpr char SETTINGS_FILE[] = "/.crosspoint/settings.bin";
+constexpr char SETTINGS_FILE[] = "/.signalos/settings.bin";
 }  // namespace
 
 bool CrossPointSettings::saveToFile() const {
   // Make sure the directory exists
-  SdMan.mkdir("/.crosspoint");
+  SdMan.mkdir("/.signalos");
 
   FsFile outputFile;
   if (!SdMan.openFileForWrite("CPS", SETTINGS_FILE, outputFile)) {

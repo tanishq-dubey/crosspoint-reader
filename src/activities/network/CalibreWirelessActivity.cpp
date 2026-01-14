@@ -494,10 +494,10 @@ void CalibreWirelessActivity::handleGetDeviceInformation() {
   response += "\"device_info\":{";
   response += "\"device_store_uuid\":\"" + getDeviceUuid() + "\",";
   response += "\"device_name\":\"CrossPoint Reader\",";
-  response += "\"device_version\":\"" CROSSPOINT_VERSION "\"";
+  response += "\"device_version\":\"" SIGNALOS_VERSION "\"";
   response += "},";
   response += "\"version\":1,";
-  response += "\"device_version\":\"" CROSSPOINT_VERSION "\"";
+  response += "\"device_version\":\"" SIGNALOS_VERSION "\"";
   response += "}";
 
   sendJsonResponse(OpCode::OK, response);
