@@ -5,10 +5,12 @@
 #include <climits>
 #include <functional>
 #include <memory>
+#include <string>
 
 #include "../ParsedText.h"
 #include "../blocks/TextBlock.h"
 
+class Epub;
 class Page;
 class GfxRenderer;
 
@@ -37,15 +39,24 @@ class ChapterHtmlSlimParser {
   uint16_t viewportWidth;
   uint16_t viewportHeight;
 
+  // Image support
+  Epub* epub = nullptr;         // For resource extraction
+  std::string contentBasePath;  // Base path for resolving relative image URLs
+  std::string imageCacheDir;    // Directory for cached BMP files
+  int imageCounter = 0;         // Counter for unique image filenames
+
   void startNewTextBlock(TextBlock::Style style);
   void makePages();
+  void processImage(const char* srcAttr);
+  void addImageToPage(const std::string& bmpPath, uint16_t width, uint16_t height);
   // XML callbacks
   static void XMLCALL startElement(void* userData, const XML_Char* name, const XML_Char** atts);
   static void XMLCALL characterData(void* userData, const XML_Char* s, int len);
   static void XMLCALL endElement(void* userData, const XML_Char* name);
 
  public:
-  explicit ChapterHtmlSlimParser(const std::string& filepath, GfxRenderer& renderer, const int fontId,
+  explicit ChapterHtmlSlimParser(const std::string& filepath, GfxRenderer& renderer, Epub* epub,
+                                 const std::string& contentBasePath, const std::string& imageCacheDir, const int fontId,
                                  const float lineCompression, const bool extraParagraphSpacing,
                                  const uint8_t paragraphAlignment, const uint16_t viewportWidth,
                                  const uint16_t viewportHeight,
@@ -53,6 +64,9 @@ class ChapterHtmlSlimParser {
                                  const std::function<void(int)>& progressFn = nullptr)
       : filepath(filepath),
         renderer(renderer),
+        epub(epub),
+        contentBasePath(contentBasePath),
+        imageCacheDir(imageCacheDir),
         fontId(fontId),
         lineCompression(lineCompression),
         extraParagraphSpacing(extraParagraphSpacing),
