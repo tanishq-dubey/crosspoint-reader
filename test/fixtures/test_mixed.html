@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head><title>Mixed Content Test</title></head>
+<body>
+
+<h1>Mixed HTML Elements</h1>
+
+<p>This document tests various HTML elements that should be properly rendered
+by the EPUB reader.</p>
+
+<hr>
+
+<h2>Text Formatting</h2>
+<p>Normal text with <strong>bold</strong>, <em>italic</em>, and
+<strong><em>bold italic</em></strong> formatting.</p>
+
+<hr>
+
+<h2>Lists in Context</h2>
+<p>Here's a paragraph before a list.</p>
+<ul>
+  <li>First bullet point</li>
+  <li>Second bullet point with <strong>bold</strong> text</li>
+  <li>Third bullet point</li>
+</ul>
+<p>And a paragraph after the list.</p>
+
+<hr>
+
+<h2>Blockquotes with Lists</h2>
+<blockquote>
+  <p>A blockquote containing a list:</p>
+  <ul>
+    <li>Item inside blockquote</li>
+    <li>Another item</li>
+  </ul>
+</blockquote>
+
+<hr>
+
+<h2>Definition List</h2>
+<dl>
+  <dt>HTML</dt>
+  <dd>HyperText Markup Language - the standard markup language for web pages</dd>
+  <dt>EPUB</dt>
+  <dd>Electronic Publication - a standard format for digital books</dd>
+  <dt>CSS</dt>
+  <dd>Cascading Style Sheets - used for styling HTML documents</dd>
+</dl>
+
+<hr>
+
+<h2>Preformatted Code</h2>
+<pre>
+function hello() {
+    console.log("Hello, World!");
+}
+</pre>
+
+<p>Inline code: <code>const x = 42;</code></p>
+
+<hr>
+
+<h2>Figure with Caption</h2>
+<figure>
+  <figcaption>Figure 1: A sample figure caption that should be centered and italic</figcaption>
+</figure>
+
+<hr>
+
+<h2>Complex Table</h2>
+<table>
+  <tr>
+    <th>Category</th>
+    <th>Items</th>
+    <th>Status</th>
+  </tr>
+  <tr>
+    <td>Lists</td>
+    <td>ul, ol, li</td>
+    <td>Implemented</td>
+  </tr>
+  <tr>
+    <td>Quotes</td>
+    <td>blockquote</td>
+    <td>Implemented</td>
+  </tr>
+  <tr>
+    <td>Tables</td>
+    <td>table, tr, td, th</td>
+    <td>Basic support</td>
+  </tr>
+</table>
+
+<hr>
+
+<h2>Final Section</h2>
+<p>This is the end of the test document. All elements above should render
+correctly on the e-ink display.</p>
+
+</body>
+</html>

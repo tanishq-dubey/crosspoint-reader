@@ -11,6 +11,13 @@ void TextBlock::render(const GfxRenderer& renderer, const int fontId, const int 
     return;
   }
 
+  // Draw blockquote vertical line if this is a blockquote block
+  if (isBlockquote && leftMargin > 8) {
+    const int lineHeight = renderer.getLineHeight(fontId);
+    // Draw vertical line 4px from the left edge of the content area
+    renderer.drawLine(x + 4, y, x + 4, y + lineHeight);
+  }
+
   auto wordIt = words.begin();
   auto wordStylesIt = wordStyles.begin();
   auto wordXposIt = wordXpos.begin();
@@ -40,6 +47,10 @@ bool TextBlock::serialize(FsFile& file) const {
   // Block style
   serialization::writePod(file, style);
 
+  // New fields for lists/blockquotes (v10+)
+  serialization::writePod(file, leftMargin);
+  serialization::writePod(file, isBlockquote);
+
   return true;
 }
 
@@ -49,6 +60,8 @@ std::unique_ptr<TextBlock> TextBlock::deserialize(FsFile& file) {
   std::list<uint16_t> wordXpos;
   std::list<EpdFontFamily::Style> wordStyles;
   Style style;
+  uint16_t leftMargin = 0;
+  bool isBlockquote = false;
 
   // Word count
   serialization::readPod(file, wc);
@@ -70,5 +83,12 @@ std::unique_ptr<TextBlock> TextBlock::deserialize(FsFile& file) {
   // Block style
   serialization::readPod(file, style);
 
-  return std::unique_ptr<TextBlock>(new TextBlock(std::move(words), std::move(wordXpos), std::move(wordStyles), style));
+  // New fields for lists/blockquotes (v10+)
+  serialization::readPod(file, leftMargin);
+  serialization::readPod(file, isBlockquote);
+
+  auto textBlock = std::unique_ptr<TextBlock>(new TextBlock(std::move(words), std::move(wordXpos), std::move(wordStyles), style));
+  textBlock->setLeftMargin(leftMargin);
+  textBlock->setIsBlockquote(isBlockquote);
+  return textBlock;
 }

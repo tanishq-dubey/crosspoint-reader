@@ -25,7 +25,8 @@ void ParsedText::layoutAndExtractLines(const GfxRenderer& renderer, const int fo
     return;
   }
 
-  const int pageWidth = viewportWidth;
+  // Account for left margin when calculating line breaks
+  const int pageWidth = viewportWidth - leftMargin;
   const int spaceWidth = renderer.getSpaceWidth(fontId);
   const auto wordWidths = calculateWordWidths(renderer, fontId);
   const auto lineBreakIndices = computeLineBreaks(pageWidth, spaceWidth, wordWidths);
@@ -163,12 +164,12 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
     spacing = spareSpace / (lineWordCount - 1);
   }
 
-  // Calculate initial x position
-  uint16_t xpos = 0;
+  // Calculate initial x position, including left margin offset
+  uint16_t xpos = leftMargin;
   if (style == TextBlock::RIGHT_ALIGN) {
-    xpos = spareSpace - (lineWordCount - 1) * spaceWidth;
+    xpos = leftMargin + spareSpace - (lineWordCount - 1) * spaceWidth;
   } else if (style == TextBlock::CENTER_ALIGN) {
-    xpos = (spareSpace - (lineWordCount - 1) * spaceWidth) / 2;
+    xpos = leftMargin + (spareSpace - (lineWordCount - 1) * spaceWidth) / 2;
   }
 
   // Pre-calculate X positions for words
@@ -191,5 +192,8 @@ void ParsedText::extractLine(const size_t breakIndex, const int pageWidth, const
   std::list<EpdFontFamily::Style> lineWordStyles;
   lineWordStyles.splice(lineWordStyles.begin(), wordStyles, wordStyles.begin(), wordStyleEndIt);
 
-  processLine(std::make_shared<TextBlock>(std::move(lineWords), std::move(lineXPos), std::move(lineWordStyles), style));
+  auto textBlock = std::make_shared<TextBlock>(std::move(lineWords), std::move(lineXPos), std::move(lineWordStyles), style);
+  textBlock->setLeftMargin(leftMargin);
+  textBlock->setIsBlockquote(isBlockquote);
+  processLine(textBlock);
 }

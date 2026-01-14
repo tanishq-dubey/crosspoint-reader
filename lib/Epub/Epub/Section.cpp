@@ -7,7 +7,8 @@
 #include "parsers/ChapterHtmlSlimParser.h"
 
 namespace {
-constexpr uint8_t SECTION_FILE_VERSION = 9;
+// Version 10: Added leftMargin and isBlockquote fields to TextBlock for lists/blockquotes
+constexpr uint8_t SECTION_FILE_VERSION = 10;
 constexpr uint32_t HEADER_SIZE = sizeof(uint8_t) + sizeof(int) + sizeof(float) + sizeof(bool) + sizeof(uint8_t) +
                                  sizeof(uint16_t) + sizeof(uint16_t) + sizeof(uint16_t) + sizeof(uint32_t);
 }  // namespace
