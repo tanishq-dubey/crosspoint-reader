@@ -1,149 +1,178 @@
-# CrossPoint Reader
+# SignalOS
 
-Firmware for the **Xteink X4** e-paper display reader (unaffiliated with Xteink).
-Built using **PlatformIO** and targeting the **ESP32-C3** microcontroller.
+**A DWS (Dubey Web Services) Project**
+*"It's your internet, take it back"*
 
-CrossPoint Reader is a purpose-built firmware designed to be a drop-in, fully open-source replacement for the official 
-Xteink firmware. It aims to match or improve upon the standard EPUB reading experience.
+---
+
+SignalOS is open-source firmware for the **Xteink X4** e-paper reader, built on the excellent foundation of [CrossPoint Reader](https://github.com/daveallie/crosspoint-reader) by Dave Allie. We're continuing that work with enhanced HTML rendering, a testing infrastructure, and our own take on what an open e-reader experience should be.
 
 ![](./docs/images/cover.jpg)
 
-## Motivation
+## Why SignalOS?
 
-E-paper devices are fantastic for reading, but most commercially available readers are closed systems with limited 
-customisation. The **Xteink X4** is an affordable, e-paper device, however the official firmware remains closed.
-CrossPoint exists partly as a fun side-project and partly to open up the ecosystem and truely unlock the device's
-potential.
+E-paper devices are perfect for reading. Low power, easy on the eyes, and distraction-free. But most e-readers are locked down, treating you as a guest on hardware you own.
 
-CrossPoint Reader aims to:
-* Provide a **fully open-source alternative** to the official firmware.
-* Offer a **document reader** capable of handling EPUB content on constrained hardware.
-* Support **customisable font, layout, and display** options.
-* Run purely on the **Xteink X4 hardware**.
+The Xteink X4 is affordable and capable, but ships with closed firmware. CrossPoint Reader proved that a fully open alternative was possible. SignalOS picks up that torch and runs with it.
 
-This project is **not affiliated with Xteink**; it's built as a community project.
+**Our goals:**
+- Keep it open. Every line of code, every decision, out in the open.
+- Make EPUBs look good. Lists with real bullets, tables that make sense, blockquotes that stand out.
+- Stay lean. The ESP32-C3 has ~380KB of RAM. We respect that constraint.
+- Enable development without hardware. Test your changes before flashing.
 
-## Features & Usage
+## What's New in SignalOS
 
-- [x] EPUB parsing and rendering (EPUB 2 and EPUB 3)
-- [ ] Image support within EPUB
-- [x] Saved reading position
-- [x] File explorer with file picker
-  - [x] Basic EPUB picker from root directory
-  - [x] Support nested folders
-  - [ ] EPUB picker with cover art
-- [x] Custom sleep screen
-  - [x] Cover sleep screen
-- [x] Wifi book upload
-- [x] Wifi OTA updates
-- [x] Configurable font, layout, and display options
-  - [ ] User provided fonts
-  - [ ] Full UTF support
+Building on CrossPoint Reader's solid EPUB parsing foundation, we've added:
+
+**Rich HTML Rendering**
+- Ordered and unordered lists with proper bullets (•) and numbering
+- Blockquotes with Kindle-style left indent and vertical line
+- Tables rendered as clean pipe-separated columns
+- Horizontal rules, preformatted code blocks, definition lists
+- Figure captions
+
+**Development Infrastructure**
+- Native unit tests (no hardware required)
+- SDL-based visual simulator for desktop testing
+- Mock hardware layer for isolated testing
+
+## Features
+
+- [x] EPUB 2 and EPUB 3 support
+- [x] JPEG images in EPUBs
+- [x] Rich HTML elements (lists, tables, blockquotes, code blocks)
+- [x] Reading position persistence
+- [x] Nested folder navigation
+- [x] Cover image as sleep screen
+- [x] WiFi book upload
+- [x] Over-the-air updates
+- [x] Configurable fonts and layout
 - [x] Screen rotation
+- [ ] Custom user fonts
+- [ ] Full Unicode support
+- [ ] Cover art in file browser
 
-See [the user guide](./USER_GUIDE.md) for instructions on operating CrossPoint.
+## Quick Start
 
-## Installing
+### Install via Web
 
-### Web (latest firmware)
+1. Connect your Xteink X4 via USB-C
+2. Visit https://xteink.dve.al/
+3. Click "Flash SignalOS firmware"
 
-1. Connect your Xteink X4 to your computer via USB-C
-2. Go to https://xteink.dve.al/ and click "Flash CrossPoint firmware"
+### Install from Source
 
-To revert back to the official firmware, you can flash the latest official firmware from https://xteink.dve.al/, or swap
-back to the other partition using the "Swap boot partition" button here https://xteink.dve.al/debug.
+```bash
+# Clone with submodules
+git clone --recursive https://github.com/tanishq-dubey/crosspoint-reader
+cd crosspoint-reader
 
-### Web (specific firmware version)
-
-1. Connect your Xteink X4 to your computer via USB-C
-2. Download the `firmware.bin` file from the release of your choice via the [releases page](https://github.com/daveallie/crosspoint-reader/releases)
-3. Go to https://xteink.dve.al/ and flash the firmware file using the "OTA fast flash controls" section
-
-To revert back to the official firmware, you can flash the latest official firmware from https://xteink.dve.al/, or swap
-back to the other partition using the "Swap boot partition" button here https://xteink.dve.al/debug.
-
-### Manual
-
-See [Development](#development) below.
+# Build and flash
+~/.platformio/penv/bin/platformio run --target upload
+```
 
 ## Development
 
 ### Prerequisites
 
-* **PlatformIO Core** (`pio`) or **VS Code + PlatformIO IDE**
-* Python 3.8+
-* USB-C cable for flashing the ESP32-C3
-* Xteink X4
+- PlatformIO Core (or VS Code with PlatformIO extension)
+- Python 3.8+
+- USB-C cable and Xteink X4 (for device testing)
+- SDL2 (optional, for simulator)
 
-### Checking out the code
+### Running Tests
 
-CrossPoint uses PlatformIO for building and flashing the firmware. To get started, clone the repository:
+We use PlatformIO's Unity framework for native testing. Tests run on your development machine, no hardware needed:
 
-```
-git clone --recursive https://github.com/daveallie/crosspoint-reader
+```bash
+# Run all tests
+~/.platformio/penv/bin/platformio test -e native
 
-# Or, if you've already cloned without --recursive:
-git submodule update --init --recursive
-```
-
-### Flashing your device
-
-Connect your Xteink X4 to your computer via USB-C and run the following command.
-
-```sh
-pio run --target upload
+# Run specific suite
+~/.platformio/penv/bin/platformio test -e native -f "test_data_structures"
 ```
 
-## Internals
+Current test coverage:
+- `test_basic` - Framework sanity checks
+- `test_data_structures` - List contexts, table structures, blockquote nesting
 
-CrossPoint Reader is pretty aggressive about caching data down to the SD card to minimise RAM usage. The ESP32-C3 only
-has ~380KB of usable RAM, so we have to be careful. A lot of the decisions made in the design of the firmware were based
-on this constraint.
+### SDL Simulator
 
-### Data caching
+See your rendering changes without flashing hardware:
 
-The first time chapters of a book are loaded, they are cached to the SD card. Subsequent loads are served from the 
-cache. This cache directory exists at `.crosspoint` on the SD card. The structure is as follows:
+```bash
+# Install SDL2
+sudo apt install libsdl2-dev  # Linux
+brew install sdl2             # macOS
 
-
-```
-.crosspoint/
-├── epub_12471232/       # Each EPUB is cached to a subdirectory named `epub_<hash>`
-│   ├── progress.bin     # Stores reading progress (chapter, page, etc.)
-│   ├── cover.bmp        # Book cover image (once generated)
-│   ├── book.bin         # Book metadata (title, author, spine, table of contents, etc.)
-│   └── sections/        # All chapter data is stored in the sections subdirectory
-│       ├── 0.bin        # Chapter data (screen count, all text layout info, etc.)
-│       ├── 1.bin        #     files are named by their index in the spine
-│       └── ...
-│
-└── epub_189013891/
+# Build and run
+~/.platformio/penv/bin/platformio run -e simulator
+./.pio/build/simulator/program test/fixtures/test_mixed.html
 ```
 
-Deleting the `.crosspoint` directory will clear the entire cache. 
+**Controls:** Arrow keys for pages, `S` for screenshot, `Q` to quit.
 
-Due the way it's currently implemented, the cache is not automatically cleared when a book is deleted and moving a book
-file will use a new cache directory, resetting the reading progress.
+### Project Layout
 
-For more details on the internal file structures, see the [file formats document](./docs/file-formats.md).
+```
+├── src/
+│   ├── main/           # Firmware entry point
+│   └── simulator/      # SDL simulator
+├── lib/
+│   ├── Epub/           # EPUB parsing, HTML rendering, page layout
+│   ├── GfxRenderer/    # Drawing primitives, text rendering
+│   └── EpdFont/        # Font handling
+├── test/
+│   ├── mocks/          # Arduino/hardware mocks for native builds
+│   ├── fixtures/       # Sample HTML for testing
+│   └── test_*/         # Test suites
+└── platformio.ini      # Build configurations
+```
+
+## How It Works
+
+### Memory Management
+
+With only ~380KB of RAM on the ESP32-C3, we cache aggressively to SD card. First chapter load parses and caches; subsequent reads come from cache.
+
+### Cache Structure
+
+```
+.signalOS/
+└── epub_<hash>/
+    ├── book.bin        # Metadata (title, author, spine, TOC)
+    ├── progress.bin    # Reading position
+    ├── cover.bmp       # Generated cover image
+    └── sections/
+        ├── 0.bin       # Chapter 0 layout data
+        ├── 1.bin       # Chapter 1 layout data
+        └── ...
+```
+
+Delete `.signalOS/` to clear all cached data.
+
+## Acknowledgments
+
+SignalOS exists because of the work that came before:
+
+- **[CrossPoint Reader](https://github.com/daveallie/crosspoint-reader)** by Dave Allie - The foundation we built on. CrossPoint proved an open Xteink X4 firmware was viable and provided the EPUB parsing, caching architecture, and display handling that SignalOS extends.
+
+- **[diy-esp32-epub-reader](https://github.com/atomic14/diy-esp32-epub-reader)** by atomic14 - Inspiration for the original CrossPoint project.
 
 ## Contributing
 
-Contributions are very welcome!
-
-If you're looking for a way to help out, take a look at the [ideas discussion board](https://github.com/daveallie/crosspoint-reader/discussions/categories/ideas).
-If there's something there you'd like to work on, leave a comment so that we can avoid duplicated effort.
-
-### To submit a contribution:
+Found a bug? Want a feature? PRs welcome.
 
 1. Fork the repo
-2. Create a branch (`feature/dithering-improvement`)
-3. Make changes
+2. Create a branch (`feature/better-tables`)
+3. Make changes, add tests if applicable
 4. Submit a PR
+
+Check the [discussions](https://github.com/tanishq-dubey/crosspoint-reader/discussions) for ideas and ongoing work.
 
 ---
 
-CrossPoint Reader is **not affiliated with Xteink or any manufacturer of the X4 hardware**.
+**SignalOS** is not affiliated with Xteink or any hardware manufacturer.
 
-Huge shoutout to [**diy-esp32-epub-reader** by atomic14](https://github.com/atomic14/diy-esp32-epub-reader), which was a project I took a lot of inspiration from as I
-was making CrossPoint.
+A **[DWS](https://github.com/tanishq-dubey)** project. It's your internet, take it back.

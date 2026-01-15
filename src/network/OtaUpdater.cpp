@@ -16,7 +16,7 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {
   Serial.printf("[%lu] [OTA] Fetching: %s\n", millis(), latestReleaseUrl);
 
   http.begin(*client, latestReleaseUrl);
-  http.addHeader("User-Agent", "CrossPoint-ESP32-" CROSSPOINT_VERSION);
+  http.addHeader("User-Agent", "CrossPoint-ESP32-" SIGNALOS_VERSION);
 
   const int httpCode = http.GET();
   if (httpCode != HTTP_CODE_OK) {
@@ -69,14 +69,14 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {
 }
 
 bool OtaUpdater::isUpdateNewer() const {
-  if (!updateAvailable || latestVersion.empty() || latestVersion == CROSSPOINT_VERSION) {
+  if (!updateAvailable || latestVersion.empty() || latestVersion == SIGNALOS_VERSION) {
     return false;
   }
 
   int currentMajor, currentMinor, currentPatch;
   int latestMajor, latestMinor, latestPatch;
 
-  const auto currentVersion = CROSSPOINT_VERSION;
+  const auto currentVersion = SIGNALOS_VERSION;
 
   // semantic version check (only match on 3 segments)
   sscanf(latestVersion.c_str(), "%d.%d.%d", &latestMajor, &latestMinor, &latestPatch);
@@ -117,7 +117,7 @@ OtaUpdater::OtaUpdaterError OtaUpdater::installUpdate(const std::function<void(s
 
   http.begin(*client, otaUrl.c_str());
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  http.addHeader("User-Agent", "CrossPoint-ESP32-" CROSSPOINT_VERSION);
+  http.addHeader("User-Agent", "CrossPoint-ESP32-" SIGNALOS_VERSION);
   const int httpCode = http.GET();
 
   if (httpCode != HTTP_CODE_OK) {

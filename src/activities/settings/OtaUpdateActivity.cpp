@@ -137,7 +137,7 @@ void OtaUpdateActivity::render() {
 
   if (state == WAITING_CONFIRMATION) {
     renderer.drawCenteredText(UI_10_FONT_ID, 200, "New update available!", true, EpdFontFamily::BOLD);
-    renderer.drawText(UI_10_FONT_ID, 20, 250, "Current Version: " CROSSPOINT_VERSION);
+    renderer.drawText(UI_10_FONT_ID, 20, 250, "Current Version: " SIGNALOS_VERSION);
     renderer.drawText(UI_10_FONT_ID, 20, 270, ("New Version: " + updater.getLatestVersion()).c_str());
 
     const auto labels = mappedInput.mapLabels("Cancel", "Update", "", "");

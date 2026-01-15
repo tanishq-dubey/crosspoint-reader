@@ -6,6 +6,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "../ParsedText.h"
 #include "../blocks/TextBlock.h"
@@ -15,6 +16,36 @@ class Page;
 class GfxRenderer;
 
 #define MAX_WORD_SIZE 200
+
+// Constants for HTML element rendering
+constexpr int LIST_INDENT_PX = 24;       // Indent per list nesting level
+constexpr int MAX_LIST_NESTING = 6;      // Max nesting to prevent overflow
+constexpr int BLOCKQUOTE_INDENT_PX = 32; // Indent for blockquotes
+
+// List context for tracking ordered/unordered lists
+struct ListContext {
+  bool isOrdered;   // true for <ol>, false for <ul>
+  int itemNumber;   // Current item number for <ol>
+};
+
+// Table cell for collecting table content during parsing
+struct TableCell {
+  std::string text;
+  EpdFontFamily::Style style = EpdFontFamily::REGULAR;
+};
+
+// Table row containing cells
+struct TableRow {
+  std::vector<TableCell> cells;
+};
+
+// Table data collected during parsing
+struct TableData {
+  std::vector<TableRow> rows;
+  int currentRow = -1;
+  int currentCell = -1;
+  bool inCell = false;
+};
 
 class ChapterHtmlSlimParser {
   const std::string& filepath;
@@ -45,10 +76,26 @@ class ChapterHtmlSlimParser {
   std::string imageCacheDir;    // Directory for cached BMP files
   int imageCounter = 0;         // Counter for unique image filenames
 
+  // List state tracking
+  std::vector<ListContext> listStack;  // Stack for nested lists
+
+  // Blockquote state tracking
+  int blockquoteDepth = 0;  // Track nested blockquotes
+
+  // Table state tracking
+  std::unique_ptr<TableData> tableData;
+  int tableDepth = 0;  // Track nested tables (skip nested ones)
+
+  // Pre/code block state
+  bool inPreBlock = false;
+
   void startNewTextBlock(TextBlock::Style style);
+  void startNewTextBlockWithMargin(TextBlock::Style style, uint16_t leftMargin);
   void makePages();
   void processImage(const char* srcAttr);
   void addImageToPage(const std::string& bmpPath, uint16_t width, uint16_t height);
+  void addHorizontalRuleToPage();
+  void renderTable();
   // XML callbacks
   static void XMLCALL startElement(void* userData, const XML_Char* name, const XML_Char** atts);
   static void XMLCALL characterData(void* userData, const XML_Char* s, int len);

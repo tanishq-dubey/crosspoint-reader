@@ -23,6 +23,8 @@ class TextBlock final : public Block {
   std::list<uint16_t> wordXpos;
   std::list<EpdFontFamily::Style> wordStyles;
   Style style;
+  uint16_t leftMargin = 0;     // Left margin for indentation (lists, blockquotes)
+  bool isBlockquote = false;   // Whether to draw vertical line for blockquote
 
  public:
   explicit TextBlock(std::list<std::string> words, std::list<uint16_t> word_xpos,
@@ -31,6 +33,10 @@ class TextBlock final : public Block {
   ~TextBlock() override = default;
   void setStyle(const Style style) { this->style = style; }
   Style getStyle() const { return style; }
+  void setLeftMargin(uint16_t margin) { leftMargin = margin; }
+  uint16_t getLeftMargin() const { return leftMargin; }
+  void setIsBlockquote(bool val) { isBlockquote = val; }
+  bool getIsBlockquote() const { return isBlockquote; }
   bool isEmpty() override { return words.empty(); }
   void layout(GfxRenderer& renderer) override {};
   // given a renderer works out where to break the words into lines

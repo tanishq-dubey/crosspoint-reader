@@ -211,8 +211,8 @@ void SettingsActivity::render() const {
   }
 
   // Draw version text above button hints
-  renderer.drawText(SMALL_FONT_ID, pageWidth - 20 - renderer.getTextWidth(SMALL_FONT_ID, CROSSPOINT_VERSION),
-                    pageHeight - 60, CROSSPOINT_VERSION);
+  renderer.drawText(SMALL_FONT_ID, pageWidth - 20 - renderer.getTextWidth(SMALL_FONT_ID, SIGNALOS_VERSION),
+                    pageHeight - 60, SIGNALOS_VERSION);
 
   // Draw help text
   const auto labels = mappedInput.mapLabels("« Save", "Toggle", "", "");

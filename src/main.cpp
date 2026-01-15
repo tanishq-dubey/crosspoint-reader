@@ -289,7 +289,16 @@ void setup() {
   verifyWakeupLongPress();
 
   // First serial output only here to avoid timing inconsistencies for power button press duration verification
-  Serial.printf("[%lu] [   ] Starting CrossPoint version " CROSSPOINT_VERSION "\n", millis());
+  Serial.printf("[%lu] [   ] Starting SignalOS version " SIGNALOS_VERSION "\n", millis());
+
+  // Migrate old .crosspoint directory to .signalos if needed
+  if (SdMan.exists("/.crosspoint") && !SdMan.exists("/.signalos")) {
+    auto dir = SdMan.open("/.crosspoint");
+    if (dir && dir.rename("/.signalos")) {
+      Serial.printf("[%lu] [   ] Migrated /.crosspoint to /.signalos\n", millis());
+    }
+    if (dir) dir.close();
+  }
 
   setupDisplayAndFonts();
 

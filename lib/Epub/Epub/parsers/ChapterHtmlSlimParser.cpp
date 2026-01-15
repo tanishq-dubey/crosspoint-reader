@@ -19,7 +19,8 @@ constexpr int NUM_HEADER_TAGS = sizeof(HEADER_TAGS) / sizeof(HEADER_TAGS[0]);
 // Minimum file size (in bytes) to show progress bar - smaller chapters don't benefit from it
 constexpr size_t MIN_SIZE_FOR_PROGRESS = 50 * 1024;  // 50KB
 
-const char* BLOCK_TAGS[] = {"p", "li", "div", "br", "blockquote"};
+// Block tags that start new text blocks (excluding li which has special handling)
+const char* BLOCK_TAGS[] = {"p", "div", "br"};
 constexpr int NUM_BLOCK_TAGS = sizeof(BLOCK_TAGS) / sizeof(BLOCK_TAGS[0]);
 
 const char* BOLD_TAGS[] = {"b", "strong"};
@@ -31,8 +32,31 @@ constexpr int NUM_ITALIC_TAGS = sizeof(ITALIC_TAGS) / sizeof(ITALIC_TAGS[0]);
 const char* IMAGE_TAGS[] = {"img"};
 constexpr int NUM_IMAGE_TAGS = sizeof(IMAGE_TAGS) / sizeof(IMAGE_TAGS[0]);
 
-const char* SKIP_TAGS[] = {"head", "table"};
+// Only skip head now - tables are handled separately
+const char* SKIP_TAGS[] = {"head"};
 constexpr int NUM_SKIP_TAGS = sizeof(SKIP_TAGS) / sizeof(SKIP_TAGS[0]);
+
+// List tags
+const char* LIST_CONTAINER_TAGS[] = {"ul", "ol"};
+constexpr int NUM_LIST_CONTAINER_TAGS = sizeof(LIST_CONTAINER_TAGS) / sizeof(LIST_CONTAINER_TAGS[0]);
+
+// Table tags
+const char* TABLE_TAGS[] = {"table"};
+const char* TABLE_ROW_TAGS[] = {"tr"};
+const char* TABLE_CELL_TAGS[] = {"td", "th"};
+
+// Pre/code tags
+const char* PRE_TAGS[] = {"pre"};
+const char* CODE_TAGS[] = {"code"};
+
+// Definition list tags
+const char* DL_TAGS[] = {"dl"};
+const char* DT_TAGS[] = {"dt"};
+const char* DD_TAGS[] = {"dd"};
+
+// Figure tags
+const char* FIGURE_TAGS[] = {"figure"};
+const char* FIGCAPTION_TAGS[] = {"figcaption"};
 
 // Image size constraints - smaller than cover images to leave room for text
 constexpr int INLINE_IMAGE_MAX_WIDTH = 474;   // 480 - 6 (margins)
@@ -111,6 +135,20 @@ void ChapterHtmlSlimParser::startNewTextBlock(const TextBlock::Style style) {
   currentTextBlock.reset(new ParsedText(style, extraParagraphSpacing));
 }
 
+// start a new text block with a left margin
+void ChapterHtmlSlimParser::startNewTextBlockWithMargin(const TextBlock::Style style, const uint16_t leftMargin) {
+  if (currentTextBlock) {
+    if (currentTextBlock->isEmpty()) {
+      currentTextBlock->setStyle(style);
+      currentTextBlock->setLeftMargin(leftMargin);
+      return;
+    }
+    makePages();
+  }
+  currentTextBlock.reset(new ParsedText(style, extraParagraphSpacing));
+  currentTextBlock->setLeftMargin(leftMargin);
+}
+
 void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char* name, const XML_Char** atts) {
   auto* self = static_cast<ChapterHtmlSlimParser*>(userData);
 
@@ -120,8 +158,53 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     return;
   }
 
+  // ========== TABLE HANDLING ==========
+  // Handle table content collection (when inside a table)
+  if (self->tableDepth > 0 && self->tableData) {
+    if (strcmp(name, "table") == 0) {
+      // Nested table - just increment depth to skip
+      self->tableDepth++;
+      self->depth += 1;
+      return;
+    }
+    if (strcmp(name, "tr") == 0) {
+      self->tableData->rows.push_back(TableRow());
+      self->tableData->currentRow = static_cast<int>(self->tableData->rows.size()) - 1;
+      self->depth += 1;
+      return;
+    }
+    if (strcmp(name, "td") == 0 || strcmp(name, "th") == 0) {
+      if (self->tableData->currentRow >= 0) {
+        self->tableData->rows[self->tableData->currentRow].cells.push_back(TableCell());
+        self->tableData->currentCell = static_cast<int>(self->tableData->rows[self->tableData->currentRow].cells.size()) - 1;
+        self->tableData->inCell = true;
+        // th = bold
+        if (strcmp(name, "th") == 0) {
+          self->tableData->rows[self->tableData->currentRow].cells[self->tableData->currentCell].style = EpdFontFamily::BOLD;
+        }
+      }
+      self->depth += 1;
+      return;
+    }
+    // Other tags inside table - just track depth
+    self->depth += 1;
+    return;
+  }
+
+  // ========== TABLE START ==========
+  if (strcmp(name, "table") == 0) {
+    // Flush pending text before starting table
+    if (self->currentTextBlock && !self->currentTextBlock->isEmpty()) {
+      self->makePages();
+    }
+    self->tableData.reset(new TableData());
+    self->tableDepth = 1;
+    self->depth += 1;
+    return;
+  }
+
+  // ========== IMAGE HANDLING ==========
   if (matches(name, IMAGE_TAGS, NUM_IMAGE_TAGS)) {
-    // Extract src attribute and process the image
     if (self->epub && atts != nullptr) {
       for (int i = 0; atts[i]; i += 2) {
         if (strcmp(atts[i], "src") == 0) {
@@ -135,8 +218,8 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     return;
   }
 
+  // ========== SKIP TAGS ==========
   if (matches(name, SKIP_TAGS, NUM_SKIP_TAGS)) {
-    // start skip
     self->skipUntilDepth = self->depth;
     self->depth += 1;
     return;
@@ -145,8 +228,8 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
   // Skip blocks with role="doc-pagebreak" and epub:type="pagebreak"
   if (atts != nullptr) {
     for (int i = 0; atts[i]; i += 2) {
-      if (strcmp(atts[i], "role") == 0 && strcmp(atts[i + 1], "doc-pagebreak") == 0 ||
-          strcmp(atts[i], "epub:type") == 0 && strcmp(atts[i + 1], "pagebreak") == 0) {
+      if ((strcmp(atts[i], "role") == 0 && strcmp(atts[i + 1], "doc-pagebreak") == 0) ||
+          (strcmp(atts[i], "epub:type") == 0 && strcmp(atts[i + 1], "pagebreak") == 0)) {
         self->skipUntilDepth = self->depth;
         self->depth += 1;
         return;
@@ -154,16 +237,145 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
     }
   }
 
+  // ========== HORIZONTAL RULE ==========
+  if (strcmp(name, "hr") == 0) {
+    if (self->currentTextBlock && !self->currentTextBlock->isEmpty()) {
+      self->makePages();
+    }
+    self->addHorizontalRuleToPage();
+    self->depth += 1;
+    return;
+  }
+
+  // ========== LIST CONTAINERS (ul/ol) ==========
+  if (strcmp(name, "ul") == 0) {
+    ListContext ctx;
+    ctx.isOrdered = false;
+    ctx.itemNumber = 0;
+    self->listStack.push_back(ctx);
+    self->depth += 1;
+    return;
+  }
+  if (strcmp(name, "ol") == 0) {
+    ListContext ctx;
+    ctx.isOrdered = true;
+    ctx.itemNumber = 0;
+    self->listStack.push_back(ctx);
+    self->depth += 1;
+    return;
+  }
+
+  // ========== LIST ITEMS ==========
+  if (strcmp(name, "li") == 0) {
+    const int nestingDepth = std::min(static_cast<int>(self->listStack.size()), MAX_LIST_NESTING);
+    const uint16_t indent = static_cast<uint16_t>(nestingDepth * LIST_INDENT_PX);
+
+    self->startNewTextBlockWithMargin(TextBlock::LEFT_ALIGN, indent);
+
+    if (!self->listStack.empty()) {
+      ListContext& ctx = self->listStack.back();
+      ctx.itemNumber++;
+
+      // Add bullet or number prefix
+      if (ctx.isOrdered) {
+        std::string prefix = std::to_string(ctx.itemNumber) + ". ";
+        self->currentTextBlock->addWord(prefix, EpdFontFamily::REGULAR);
+      } else {
+        // UTF-8 bullet: U+2022 = \xe2\x80\xa2
+        self->currentTextBlock->addWord("\xe2\x80\xa2", EpdFontFamily::REGULAR);
+      }
+    }
+    self->depth += 1;
+    return;
+  }
+
+  // ========== BLOCKQUOTE ==========
+  if (strcmp(name, "blockquote") == 0) {
+    self->blockquoteDepth++;
+    const uint16_t indent = static_cast<uint16_t>(self->blockquoteDepth * BLOCKQUOTE_INDENT_PX);
+    self->startNewTextBlockWithMargin((TextBlock::Style)self->paragraphAlignment, indent);
+    self->currentTextBlock->setIsBlockquote(true);
+    self->depth += 1;
+    return;
+  }
+
+  // ========== PRE/CODE BLOCKS ==========
+  if (strcmp(name, "pre") == 0) {
+    self->inPreBlock = true;
+    self->startNewTextBlock(TextBlock::LEFT_ALIGN);
+    self->depth += 1;
+    return;
+  }
+  if (strcmp(name, "code") == 0) {
+    // Inline code - no special handling needed currently
+    self->depth += 1;
+    return;
+  }
+
+  // ========== DEFINITION LISTS ==========
+  if (strcmp(name, "dl") == 0) {
+    // Definition list container - no special handling needed
+    self->depth += 1;
+    return;
+  }
+  if (strcmp(name, "dt") == 0) {
+    // Definition term - bold, no indent
+    self->startNewTextBlock(TextBlock::LEFT_ALIGN);
+    self->boldUntilDepth = std::min(self->boldUntilDepth, self->depth);
+    self->depth += 1;
+    return;
+  }
+  if (strcmp(name, "dd") == 0) {
+    // Definition description - indented
+    self->startNewTextBlockWithMargin(TextBlock::LEFT_ALIGN, LIST_INDENT_PX);
+    self->depth += 1;
+    return;
+  }
+
+  // ========== FIGURE/FIGCAPTION ==========
+  if (strcmp(name, "figure") == 0) {
+    if (self->currentTextBlock && !self->currentTextBlock->isEmpty()) {
+      self->makePages();
+    }
+    self->depth += 1;
+    return;
+  }
+  if (strcmp(name, "figcaption") == 0) {
+    // Caption - centered, italic
+    self->startNewTextBlock(TextBlock::CENTER_ALIGN);
+    self->italicUntilDepth = std::min(self->italicUntilDepth, self->depth);
+    self->depth += 1;
+    return;
+  }
+
+  // ========== HEADERS ==========
   if (matches(name, HEADER_TAGS, NUM_HEADER_TAGS)) {
     self->startNewTextBlock(TextBlock::CENTER_ALIGN);
     self->boldUntilDepth = std::min(self->boldUntilDepth, self->depth);
-  } else if (matches(name, BLOCK_TAGS, NUM_BLOCK_TAGS)) {
+    self->depth += 1;
+    return;
+  }
+
+  // ========== STANDARD BLOCK TAGS ==========
+  if (matches(name, BLOCK_TAGS, NUM_BLOCK_TAGS)) {
     if (strcmp(name, "br") == 0) {
       self->startNewTextBlock(self->currentTextBlock->getStyle());
     } else {
-      self->startNewTextBlock((TextBlock::Style)self->paragraphAlignment);
+      // Apply blockquote margin if inside a blockquote
+      if (self->blockquoteDepth > 0) {
+        const uint16_t indent = static_cast<uint16_t>(self->blockquoteDepth * BLOCKQUOTE_INDENT_PX);
+        self->startNewTextBlockWithMargin((TextBlock::Style)self->paragraphAlignment, indent);
+        self->currentTextBlock->setIsBlockquote(true);
+      } else {
+        self->startNewTextBlock((TextBlock::Style)self->paragraphAlignment);
+      }
     }
-  } else if (matches(name, BOLD_TAGS, NUM_BOLD_TAGS)) {
+    self->depth += 1;
+    return;
+  }
+
+  // ========== INLINE STYLES ==========
+  if (matches(name, BOLD_TAGS, NUM_BOLD_TAGS)) {
     self->boldUntilDepth = std::min(self->boldUntilDepth, self->depth);
   } else if (matches(name, ITALIC_TAGS, NUM_ITALIC_TAGS)) {
     self->italicUntilDepth = std::min(self->italicUntilDepth, self->depth);
@@ -180,6 +392,25 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
     return;
   }
 
+  // ========== TABLE CELL CONTENT ==========
+  // Collect table cell text into the table data structure
+  if (self->tableDepth > 0 && self->tableData && self->tableData->inCell) {
+    auto& cell = self->tableData->rows[self->tableData->currentRow].cells[self->tableData->currentCell];
+    // Append text, normalizing whitespace
+    for (int i = 0; i < len; i++) {
+      if (isWhitespace(s[i])) {
+        // Convert whitespace to single space if there's already content
+        if (!cell.text.empty() && cell.text.back() != ' ') {
+          cell.text += ' ';
+        }
+      } else {
+        cell.text += s[i];
+      }
+    }
+    return;
+  }
+
+  // ========== DETERMINE FONT STYLE ==========
   EpdFontFamily::Style fontStyle = EpdFontFamily::REGULAR;
   if (self->boldUntilDepth < self->depth && self->italicUntilDepth < self->depth) {
     fontStyle = EpdFontFamily::BOLD_ITALIC;
@@ -189,6 +420,41 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
     fontStyle = EpdFontFamily::ITALIC;
   }
 
+  // ========== PRE BLOCK HANDLING ==========
+  // In pre blocks, preserve whitespace and handle newlines
+  if (self->inPreBlock) {
+    for (int i = 0; i < len; i++) {
+      if (s[i] == '\n') {
+        // Flush current buffer
+        if (self->partWordBufferIndex > 0) {
+          self->partWordBuffer[self->partWordBufferIndex] = '\0';
+          self->currentTextBlock->addWord(self->partWordBuffer, fontStyle);
+          self->partWordBufferIndex = 0;
+        }
+        // Start new block for newline
+        self->startNewTextBlock(TextBlock::LEFT_ALIGN);
+      } else if (s[i] == ' ' || s[i] == '\t') {
+        // Flush current word first
+        if (self->partWordBufferIndex > 0) {
+          self->partWordBuffer[self->partWordBufferIndex] = '\0';
+          self->currentTextBlock->addWord(self->partWordBuffer, fontStyle);
+          self->partWordBufferIndex = 0;
+        }
+        // Add non-breaking space as a separate word (UTF-8 NBSP: U+00A0 = \xc2\xa0)
+        self->currentTextBlock->addWord("\xc2\xa0", fontStyle);
+      } else {
+        if (self->partWordBufferIndex >= MAX_WORD_SIZE) {
+          self->partWordBuffer[self->partWordBufferIndex] = '\0';
+          self->currentTextBlock->addWord(self->partWordBuffer, fontStyle);
+          self->partWordBufferIndex = 0;
+        }
+        self->partWordBuffer[self->partWordBufferIndex++] = s[i];
+      }
+    }
+    return;
+  }
+
+  // ========== STANDARD TEXT HANDLING ==========
   for (int i = 0; i < len; i++) {
     if (isWhitespace(s[i])) {
       // Currently looking at whitespace, if there's anything in the partWordBuffer, flush it
@@ -241,14 +507,63 @@ void XMLCALL ChapterHtmlSlimParser::characterData(void* userData, const XML_Char
 void XMLCALL ChapterHtmlSlimParser::endElement(void* userData, const XML_Char* name) {
   auto* self = static_cast<ChapterHtmlSlimParser*>(userData);
 
+  // ========== TABLE END HANDLING ==========
+  if (self->tableDepth > 0) {
+    if (strcmp(name, "td") == 0 || strcmp(name, "th") == 0) {
+      if (self->tableData) {
+        self->tableData->inCell = false;
+      }
+      self->depth -= 1;
+      return;
+    }
+    if (strcmp(name, "table") == 0) {
+      self->tableDepth--;
+      if (self->tableDepth == 0 && self->tableData) {
+        self->renderTable();
+        self->tableData.reset();
+      }
+      self->depth -= 1;
+      return;
+    }
+    // Other table elements - just decrement depth
+    self->depth -= 1;
+    return;
+  }
+
+  // ========== LIST END HANDLING ==========
+  if (strcmp(name, "ul") == 0 || strcmp(name, "ol") == 0) {
+    if (!self->listStack.empty()) {
+      self->listStack.pop_back();
+    }
+    self->depth -= 1;
+    return;
+  }
+
+  // ========== BLOCKQUOTE END ==========
+  if (strcmp(name, "blockquote") == 0) {
+    if (self->blockquoteDepth > 0) {
+      self->blockquoteDepth--;
+    }
+    self->depth -= 1;
+    return;
+  }
+
+  // ========== PRE END ==========
+  if (strcmp(name, "pre") == 0) {
+    self->inPreBlock = false;
+    self->depth -= 1;
+    return;
+  }
+
+  // ========== FLUSH WORD BUFFER FOR BLOCK TAGS ==========
   if (self->partWordBufferIndex > 0) {
     // Only flush out part word buffer if we're closing a block tag or are at the top of the HTML file.
     // We don't want to flush out content when closing inline tags like <span>.
-    // Currently this also flushes out on closing <b> and <i> tags, but they are line tags so that shouldn't happen,
-    // text styling needs to be overhauled to fix it.
     const bool shouldBreakText =
         matches(name, BLOCK_TAGS, NUM_BLOCK_TAGS) || matches(name, HEADER_TAGS, NUM_HEADER_TAGS) ||
-        matches(name, BOLD_TAGS, NUM_BOLD_TAGS) || matches(name, ITALIC_TAGS, NUM_ITALIC_TAGS) || self->depth == 1;
+        matches(name, BOLD_TAGS, NUM_BOLD_TAGS) || matches(name, ITALIC_TAGS, NUM_ITALIC_TAGS) ||
+        strcmp(name, "li") == 0 || strcmp(name, "dt") == 0 || strcmp(name, "dd") == 0 ||
+        strcmp(name, "figcaption") == 0 || self->depth == 1;
 
     if (shouldBreakText) {
       EpdFontFamily::Style fontStyle = EpdFontFamily::REGULAR;
@@ -512,5 +827,91 @@ void ChapterHtmlSlimParser::addImageToPage(const std::string& bmpPath, const uin
 
   // Add some spacing after image (half a line height)
   const int lineHeight = renderer.getLineHeight(fontId) * lineCompression;
+  currentPageNextY += lineHeight / 2;
+}
+
+void ChapterHtmlSlimParser::addHorizontalRuleToPage() {
+  if (!currentPage) {
+    currentPage.reset(new Page());
+    currentPageNextY = 0;
+  }
+
+  const int lineHeight = renderer.getLineHeight(fontId) * lineCompression;
+  const int hrWidth = viewportWidth * 2 / 3;  // 2/3 of viewport width
+  const int hrX = (viewportWidth - hrWidth) / 2;  // Centered
+
+  // Add spacing before
+  currentPageNextY += lineHeight / 2;
+
+  // Check page break
+  if (currentPageNextY + lineHeight > viewportHeight) {
+    completePageFn(std::move(currentPage));
+    currentPage.reset(new Page());
+    currentPageNextY = 0;
+  }
+
+  // Create a simple text block with a line of dashes as horizontal rule
+  // We use em-dashes repeated to create a visual line effect
+  startNewTextBlock(TextBlock::CENTER_ALIGN);
+  // UTF-8 horizontal bar character U+2015 = \xe2\x80\x95 repeated
+  std::string hrLine;
+  for (int i = 0; i < 20; i++) {
+    hrLine += "\xe2\x80\x95";  // horizontal bar
+  }
+  currentTextBlock->addWord(hrLine, EpdFontFamily::REGULAR);
+  makePages();
+
+  // Add spacing after
+  currentPageNextY += lineHeight / 2;
+}
+
+void ChapterHtmlSlimParser::renderTable() {
+  if (!tableData || tableData->rows.empty()) {
+    return;
+  }
+
+  // Find max column count
+  size_t maxCols = 0;
+  for (const auto& row : tableData->rows) {
+    maxCols = std::max(maxCols, row.cells.size());
+  }
+  if (maxCols == 0) {
+    return;
+  }
+
+  // Add spacing before table
+  const int lineHeight = renderer.getLineHeight(fontId) * lineCompression;
+
+  // Render each row as a text block
+  for (const auto& row : tableData->rows) {
+    startNewTextBlock(TextBlock::LEFT_ALIGN);
+
+    bool first = true;
+    for (const auto& cell : row.cells) {
+      // Trim whitespace from cell text
+      std::string text = cell.text;
+      while (!text.empty() && (text.front() == ' ' || text.front() == '\t')) {
+        text.erase(0, 1);
+      }
+      while (!text.empty() && (text.back() == ' ' || text.back() == '\t')) {
+        text.pop_back();
+      }
+
+      // Add separator between cells
+      if (!first) {
+        currentTextBlock->addWord("|", EpdFontFamily::REGULAR);
+      }
+      first = false;
+
+      // Add cell text (or placeholder if empty)
+      if (!text.empty()) {
+        currentTextBlock->addWord(text, cell.style);
+      }
+    }
+
+    makePages();
+  }
+
+  // Add spacing after table
   currentPageNextY += lineHeight / 2;
 }

@@ -48,7 +48,7 @@ void HomeActivity::onEnter() {
 
     // If epub, try to load the metadata for title/author
     if (StringUtils::checkFileExtension(lastBookTitle, ".epub")) {
-      Epub epub(APP_STATE.openEpubPath, "/.crosspoint");
+      Epub epub(APP_STATE.openEpubPath, "/.signalos");
       epub.load(false);
       if (!epub.getTitle().empty()) {
         lastBookTitle = std::string(epub.getTitle());
